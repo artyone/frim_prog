@@ -6,9 +6,114 @@ import tkinter as tk
 import tkinter.filedialog as fd
 import tkinter.messagebox as mb
 import tkinter.ttk as ttk
+import json
+from time import time
 
 
-class Config(object):
+class Config():
+    def __init__(self):
+        self.path_to_dir = os.path.dirname(__file__)
+        self.path_to_config = self.path_to_dir + '/config.json'
+        if not os.path.isfile(self.path_to_config) or not self.config_is_ok():
+            self.create_config()
+        self.config_data = self.read_config()
+
+    def create_config(self):
+        with open(self.path_to_config, 'w', encoding='utf8') as file:
+            config = {}
+            if os.path.isfile(r'C:/AStudio6/atbackend/atprogram.exe'):
+                config['app_path'] = r'C:/AStudio6/atbackend/atprogram.exe'
+            else:
+                config['app_path'] = ''
+            config['command_write'] = {
+                'fuse': 'E419FF',
+                'args': '-t jtagicemkii -d 1887BE7T -i JTAG -cl 250khz write -fs --values'
+            }
+            config["command_program"] = {
+                "args": "-t jtagicemkii -d 1887BE7T -i JTAG -cl 250khz program -fl -f",
+                "frm_filepath": ''
+            }
+            config["command_read_hex"] = {
+                "args": "-t jtagicemkii -d atmega128A -i JTAG -cl 250khz read -fl -f",
+                "hex_filepath": f'{os.path.dirname(__file__)}/hex'
+            }
+            config["command_read_checksum"] = {
+                "args": "-t jtagicemkii -d atmega128A -i JTAG -cl 250khz read -fs"
+            }
+            json.dump(config, file, indent=4)
+
+    def read_config(self):
+        with open(self.path_to_config, 'r', encoding='utf8') as file:
+            result = json.load(file)
+            return result
+
+    def save_config(self):
+        with open(self.path_to_config, 'w', encoding='utf8') as file:
+            json.dump(self.config_data, file)
+
+    def get_command_write(self):
+        """Позволяет получить из конфига команду записи"""
+        app_path = self.config_data['app_path']
+        args = self.config_data['command_write']['args']
+        fuse = self.config_data['command_write']['fuse']
+        if app_path != '' and args != '' and fuse != '':
+            command = ' '.join([f'"{app_path}"', args, fuse])
+            return command
+        else:
+            return ''
+
+    def get_command_program(self):
+        """Позволяет получить из конфига команду программирования"""
+        app_path = self.config_data['app_path']
+        args = self.config_data['command_program']['args']
+        frm_filepath = self.config_data['command_program']['frm_filepath']
+        if app_path != '' and args != '' and frm_filepath != '':
+            command = ' '.join([f'"{app_path}"', args, f'"{frm_filepath}"'])
+            return command
+        else:
+            return ''
+
+    def get_command_hex(self):
+        """Позволяет получить из конфига команду чтения прошивки"""
+        app_path = self.config_data['app_path']
+        args = self.config_data['command_read_hex']['args']
+        hex_filepath = self.config_data['command_read_hex']['hex_filepath']
+        if app_path != '' and args != '' and hex_filepath != '':
+            command = ' '.join([f'"{app_path}"', args, f'"{hex_filepath}"'])
+            return command
+        else:
+            return ''
+
+    def get_command_checksum(self):
+        """Позволяет получить из конфига команду чтения контрольной суммы"""
+        app_path = self.config_data['app_path']
+        args = self.config_data['command_read_checksum']['args']
+        if app_path != '' and args != '':
+            command = ' '.join([f'"{app_path}"', args])
+            return command
+        else:
+            return ''
+
+    def config_is_ok(self):
+        try:
+            config = self.read_config()
+            keys = sorted(
+                ['app_path', 'command_write', 'command_program', 
+                 'command_read_hex', 'command_read_checksum']
+            )
+            return keys == sorted(list(config.keys()))
+        except:
+            return False
+        
+    def check_app_path(self):
+        """Проверка, что файл приложения, указанный в конфиге, существует"""
+        if os.path.isfile(self.config_data['app_path']):
+            return True
+        else:
+            return False
+
+
+class Config_old(object):
     """Класс работы с конфиг файлом"""
 
     def __init__(self):
@@ -122,6 +227,7 @@ class Commander(object):
         self.exec_command(config.get_command2())
         result += '*__*' + self.get_answer()
         return result
+
 
 class Alert(tk.Toplevel):
     """Класс вывода сообщений на экран и их расшифровке, создается обязательно с message"""
@@ -272,10 +378,15 @@ class App(tk.Tk):
             frame,
             text="Путь к программе:  "
         )
-        self.ent_app = ttk.Entry(
+        self.ent_app = tk.Entry(
             frame,
             width=40)
-        self.ent_app.insert(0, config.get_default_value('app_path'))
+        self.ent_app.insert(0, config.config_data['app_path'])
+        if not config.check_app_path():
+            self.ent_app.config(highlightbackground='red', highlightcolor='red', highlightthickness=2)
+        else: 
+            self.ent_app.config(highlightbackground='green', highlightcolor='green', highlightthickness=2)
+
         self.btn_app = ttk.Button(
             frame,
             text="Выбрать файл",
@@ -289,7 +400,7 @@ class App(tk.Tk):
             frame,
             width=40
         )
-        self.ent_frw.insert(0, config.get_frm_path_value())
+        self.ent_frw.insert(0, config.config_data['command_program']['frm_filepath'])
         self.btn_frw = ttk.Button(
             frame,
             text="Выбрать файл",
@@ -315,11 +426,17 @@ class App(tk.Tk):
                      ("Любой", "*"))
         filename = fd.askopenfilename(
             title="Открыть файл",
-            initialdir=os.path.dirname(config.get_default_value('app_path')),
+            initialdir=os.path.dirname(config.config_data['app_path']),
             filetypes=filetypes)
         if filename:
             self.ent_app.delete(0, tk.END)
             self.ent_app.insert(0, filename)
+            config.config_data['app_path'] = filename
+            config.save_config()
+            if not config.check_app_path():
+                self.ent_app.config(highlightbackground='red', highlightcolor='red', highlightthickness=2)
+            else: 
+                self.ent_app.config(highlightbackground='green', highlightcolor='green', highlightthickness=2)
             self.__check_btn_status()
 
     def __choose_file_frw(self):
@@ -327,7 +444,7 @@ class App(tk.Tk):
                      ("Любой", "*"))
         filename = fd.askopenfilename(
             title="Открыть файл",
-            initialdir=os.path.dirname(config.get_frm_path_value()),
+            initialdir=os.path.dirname(config.config_data['command_program']['frm_filepath']),
             filetypes=filetypes)
         if filename:
             self.ent_frw.delete(0, tk.END)
@@ -336,11 +453,12 @@ class App(tk.Tk):
 
     def __magic(self):
         """Основная функция запускающая функционал программы"""
-        if os.path.isfile(self.ent_app.get()) and os.path.isfile(self.ent_frw.get()):
-            config.set_config_value(
-                block='DEFAULT', key='app_path', value=self.ent_app.get())
-            config.set_config_value(
-                block='COMMAND2', key='value', value=self.ent_frw.get())
+        app_path = self.ent_app.get()
+        frm_filepath = self.ent_frw.get()
+        if os.path.isfile(app_path) and os.path.isfile(frm_filepath):
+            config.config_data['app_path'] = app_path
+            config.config_data['command_program']['frm_filepath'] = frm_filepath
+            config.save_config()
             answer = commander.exec_all_commands()
             self.alert(answer)
         else:
@@ -367,19 +485,18 @@ class App(tk.Tk):
         self.btn_mgc.grid(row=6, column=2, pady=5, padx=4)
         self.lbl_image.grid(row=6, column=3, pady=15, padx=4)
         self.geometry(self.center_window(width=550, height=150))
-        if not config.check_app_path():
-            self.lbl_app.grid(row=3, column=1, pady=5, padx=4, sticky='w')
-            self.ent_app.grid(row=3, column=2, pady=5, padx=4)
-            self.btn_app.grid(row=3, column=3, pady=5, padx=4, sticky='w')
-            self.geometry(self.center_window(width=550, height=180))
+        self.lbl_app.grid(row=3, column=1, pady=5, padx=4, sticky='w')
+        self.ent_app.grid(row=3, column=2, pady=5, padx=4)
+        self.btn_app.grid(row=3, column=3, pady=5, padx=4, sticky='w')
+        self.geometry(self.center_window(width=550, height=180))
         self.resizable(False, False)
 
     def center_window(self, width, height):
         """Рассчет для центровки положения окна на экране"""
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
-        x = (screen_width/2) - (width/2)
-        y = (screen_height/2) - (height/2)
+        x = (screen_width / 2) - (width / 2)
+        y = (screen_height / 2) - (height / 2)
 
         return '%dx%d+%d+%d' % (width, height, x, y)
 
