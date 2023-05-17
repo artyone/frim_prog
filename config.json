@@ -1,1 +1,16 @@
-{"app_path": "C:/Tikhonov/frim_prog/UO/atbackend/atprogram.exe", "command_write": {"fuse": "E419FF", "args": "-t jtagicemkii -d 1887BE7T -i JTAG -cl 250khz write -fs --values"}, "command_program": {"args": "-t jtagicemkii -d 1887BE7T -i JTAG -cl 250khz program -fl -f", "frm_filepath": ""}, "command_read_hex": {"args": "-t jtagicemkii -d atmega128A -i JTAG -cl 250khz read -fl -f", "hex_filepath": "c:/Tikhonov/frim_prog/hex"}, "command_read_checksum": {"args": "-t jtagicemkii -d atmega128A -i JTAG -cl 250khz read -fs"}}
+{
+    "app_path": "C:/Tikhonov/frim_prog/UO/atbackend/atprogram.exe",
+    "fuse": "E419FF",
+    "device": "atmega128A",
+    "frm_filepath": "C:/Tikhonov/frim_prog/UO/firmware.hex",
+    "hex_filepath": "c:/Tikhonov/frim_prog/hex/frw{time}.hex",
+    "command_write": "-t jtagicemkii -d {device} -i JTAG -cl 250khz write -fs --values",
+    "command_program": "-t jtagicemkii -d {device} -i JTAG -cl 250khz program -fl -f",
+    "command_read_hex": "-t jtagicemkii -d {device} -i JTAG -cl 250khz read -fl -f",
+    "command_read_fuse": "-t jtagicemkii -d {device} -i JTAG -cl 250khz read -fs",
+    "logs": true,
+    "devices": [
+        "atmega128A",
+        "1887BE7T"
+    ]
+}
