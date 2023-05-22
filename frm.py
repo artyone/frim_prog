@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import messagebox
 from tkinter.scrolledtext import ScrolledText
 import tkinter.filedialog as fd
 import tkinter.ttk as ttk
@@ -204,8 +205,9 @@ class Commander(object):
         with open(filepath, 'rb') as file:
             md5_hash = hashlib.md5(file.read())
             md5_hex = md5_hash.hexdigest().upper()
-            md5_formatted = ' '.join(md5_hex[i:i + 4]
-                                     for i in range(0, len(md5_hex), 4))
+            md5_formatted = ' '.join(
+                md5_hex[i:i + 4] for i in range(0, len(md5_hex), 4)
+            )
             return md5_formatted
 
     def exec_read_commands(self) -> tuple:
@@ -219,10 +221,12 @@ class Commander(object):
         self.check_hex_dir()
         self.exec_command(config.get_command_hex())
         answer = self.get_answer()
+        print(answer)
         if 'Firmware check OK' in answer:
-            file_name = answer.split(
+            file_path = answer.split(
                 ' ')[-1].replace('\r', '').replace('\n', '')
-            hash = self.get_md5(file_name)
+            local_path = 'hex/' + file_path.split('/')[-1]
+            hash = self.get_md5(local_path)
             return True, answer, hash
         else:
             return False, answer, None
@@ -274,6 +278,8 @@ class Text_log(ScrolledText):
     def set_text(self, text: str) -> bool:
         '''Установка текста результата в лог окно'''
         string = ''
+        color = 'red'
+        result = False
         for code in self.codes_err:
             if code in text:
                 string = self.codes_err[code]
@@ -328,7 +334,7 @@ class App(tk.Tk):
         s = ttk.Style()
         s.theme_use('vista')
         self.title(
-            "Программирование микроконтроллера (Atmega128A / 1887ВЕ7Т), вер. 1.4")
+            "Программирование микроконтроллера (Atmega128A / 1887ВЕ7Т), вер. 1.4.2")
         frame = tk.Frame(
             self,
             padx=10,
@@ -424,9 +430,9 @@ class App(tk.Tk):
             result1 = self.txt_log.set_text(answer1)
             result2 = self.txt_log.set_text(answer2)
             if result1 and result2:
-                tk.messagebox.showinfo("Успешно", "ПО на устройстве обновлено")
+                messagebox.showinfo("Успешно", "ПО на устройстве обновлено")
             else:
-                tk.messagebox.showerror("Ошибка", "ПО на устройстве НЕ обновлено")
+                messagebox.showerror("Ошибка", "ПО на устройстве НЕ обновлено")
         else:
             if not config.is_rigth_app_path():
                 self.txt_log.set_text('Wrong path program')
@@ -445,14 +451,15 @@ class App(tk.Tk):
                 self.ent_checksum_from_device.insert(0, md5)
                 self.txt_log.set_text(answer)
                 self.txt_log.set_checksum(f'КС файла на устройстве: {md5}')
-                tk.messagebox.showinfo("Успешно", "Контрольная сумма посчитана")
+                messagebox.showinfo("Успешно", "Контрольная сумма посчитана")
             else:
                 self.txt_log.set_text(answer)
-                tk.messagebox.showerror("Ошибка", "Контрольная сумма не посчитана")
+                messagebox.showerror("Ошибка", "Контрольная сумма не посчитана")
         else:
             self.txt_log.set_text('Wrong path program')
 
     def check_btn_status(self) -> None:
+        self.txt_log.set_gray()
         if config.is_rigth_app_path() and os.path.isfile(self.ent_frw.get()):
             self.btn_program.config(state='normal')
         else:
@@ -466,7 +473,6 @@ class App(tk.Tk):
         else:
             self.btn_read.config(state='disabled')
         if os.path.isfile(self.ent_frw.get()):
-            self.txt_log.set_gray()
             md5 = commander.get_md5(self.ent_frw.get())
             if config.dll['disk_file'][0] == md5:
                 md5 = config.dll['disk_file'][1]
