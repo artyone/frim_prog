@@ -157,7 +157,7 @@ class Config():
 class Commander(object):
     '''Класс для выполнения команд в командной строке'''
 
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     def exec_command(self, command: str) -> None:
@@ -165,12 +165,14 @@ class Commander(object):
         self.answer = 'Error'.encode()
         try:
             self.process = subprocess.run(
-                command, shell=True, capture_output=True, timeout=25)
-            self.answer = self.process.stdout + self.process.stderr
+                command, shell=True, capture_output=True, timeout=30
+            )
         except subprocess.TimeoutExpired:
             self.answer = 'Timeout error'.encode()
         except Exception as e:
             self.answer = str(e.args[0]).encode()
+        else:
+            self.answer = self.process.stdout + self.process.stderr
         finally:
             if config.config_data['logs']:
                 self.save_log(command, self.get_answer())
@@ -322,7 +324,7 @@ class Text_log(ScrolledText):
         for eng, ru in self.codes_err.items():
             if eng in text:
                 return ru, 'red', False
-        for eng, ru in self.code_suc:
+        for eng, ru in self.codes_suc.items():
             if eng in text:
                 return ru, 'green', True
         return text, 'red', False
