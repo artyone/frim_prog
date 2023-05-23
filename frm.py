@@ -10,11 +10,12 @@ import hashlib
 import json
 import time
 import os
+import re
 
 
 class Config():
     def __init__(self) -> None:
-        self.path_to_dir = os.path.dirname(__file__)
+        self.path_to_dir = os.path.dirname(__file__).replace('\\', '/')
         self.path_to_config = self.path_to_dir + '/config.json'
         self.path_to_dll = self.path_to_dir + '/libMD5.dll'
         if not os.path.isfile(self.path_to_config) or not self.config_is_ok():
@@ -23,6 +24,7 @@ class Config():
             self.create_dll()
         self.config_data = self.read_json(self.path_to_config)
         self.dll = self.read_json(self.path_to_dll)
+        self.current_fuse = 'УО'
 
     def create_config(self) -> None:
         '''Создаем конфиг, если его нет'''
@@ -34,11 +36,11 @@ class Config():
                 config['app_path'] = r'C:/Program Files (x86)/Atmel/Atmel Studio 6.2/atbackend/atprogram.exe'
             else:
                 config['app_path'] = ''
-            config['fuse'] = 'E419FF'
+            config['fuses'] = {'УО': 'E419FF', 'УСК': 'A419FF'}
             config['device'] = 'atmega128A'
+            config['default_frm_filepath'] = self.path_to_dir
             config['frm_filepath'] = ''
-            config['hex_filepath'] = os.path.dirname(
-                __file__).replace('\\', '/') + '/hex/frw{time}.hex'
+            config['hex_filepath'] = '/hex/frw{time}.hex'
             config['command_write'] = '-t jtagicemkii -d {device} -i JTAG -cl 250khz write -fs --values'
             config["command_program"] = "-t jtagicemkii -d {device} -i JTAG -cl 250khz program -fl -f"
             config["command_read_hex"] = "-t jtagicemkii -d {device} -i JTAG -cl 250khz read -fl -f"
@@ -46,7 +48,7 @@ class Config():
             config["logs"] = True
             config['devices'] = ['atmega128A', '1887BE7T']
 
-            json.dump(config, file, indent=4)
+            json.dump(config, file, indent=4, ensure_ascii=False)
 
     def create_dll(self) -> None:
         '''Создаем длл если его нет'''
@@ -56,7 +58,7 @@ class Config():
                                 '1111 4881 2B7D 2376 5690 90B8 BD23 1DC5']
             dll['device_file'] = ['236С 4881 2B7D 2376 5690 90B8 BD23 1DC5',
                                   '1111 4881 2B7D 2376 5690 90B8 BD23 1DC5']
-            json.dump(dll, file, indent=4)
+            json.dump(dll, file, indent=4, ensure_ascii=False)
 
     @staticmethod
     def read_json(path: str) -> dict:
@@ -78,7 +80,7 @@ class Config():
         '''Позволяет получить из конфига команду записи'''
         app_path = self.config_data['app_path']
         args = self.insert_device(self.config_data['command_write'])
-        fuse = self.config_data['fuse']
+        fuse = self.config_data['fuses'][self.current_fuse]
         if app_path != '' and args != '' and fuse != '':
             command = ' '.join(['"' + app_path + '"', args, fuse])
             return command
@@ -93,7 +95,7 @@ class Config():
         if app_path != '' and args != '' and frm_filepath != '':
             command = ' '.join(
                 ['"' + app_path + '"', args, f'"{frm_filepath}"']
-        )
+            )
             return command
         else:
             return ''
@@ -102,7 +104,7 @@ class Config():
         '''Позволяет получить из конфига команду чтения прошивки'''
         app_path = self.config_data['app_path']
         args = self.insert_device(self.config_data['command_read_hex'])
-        hex_filepath = self.config_data['hex_filepath']
+        hex_filepath = self.path_to_dir + self.config_data['hex_filepath']
         hex_filepath = hex_filepath.replace('{time}', str(int(time.time())))
         if app_path != '' and args != '' and hex_filepath != '':
             command = ' '.join([f'"{app_path}"', args, f'"{hex_filepath}"'])
@@ -134,11 +136,11 @@ class Config():
         try:
             config = self.read_json(self.path_to_config)
             keys = sorted([
-                'app_path', 'fuse', 'device',
+                'app_path', 'fuses', 'device',
                 'frm_filepath', 'hex_filepath',
                 'command_write', 'command_program',
                 'command_read_hex', 'command_read_fuse',
-                'logs', 'devices'
+                'logs', 'devices', 'default_frm_filepath'
             ])
             return keys == sorted(list(config.keys()))
         except:
@@ -193,10 +195,22 @@ class Commander(object):
         Выполнить сразу 2 команды по прогрммированию микроконтроллера.
         Возвращает сразу результат выполнения двух команд
         '''
-        self.exec_command(config.get_command_write())
+        command_write = config.get_command_write()
+
+        print(f'Команда записи: {command_write}')
+
+        self.exec_command(command_write)
         answer1 = self.get_answer()
-        self.exec_command(config.get_command_program())
+
+        print(f'Ответ: {answer1}')
+
+        command_program = config.get_command_program()
+
+        print(f'Команда прошивки: {command_program}')
+        self.exec_command(command_program)
         answer2 = self.get_answer()
+
+        print(f'Ответ: {answer2}')
         return answer1, answer2
 
     @staticmethod
@@ -219,13 +233,16 @@ class Commander(object):
         # hash = self.get_md5('hex/firmware.hex')
         # return True, 'Firmware check OK', hash
         self.check_hex_dir()
-        self.exec_command(config.get_command_hex())
+        command = config.get_command_hex()
+        print(f'Команда:{command}')
+        self.exec_command(command)
         answer = self.get_answer()
-        print(answer)
+        print(f'Ответ:{answer}')
         if 'Firmware check OK' in answer:
-            file_path = answer.split(
-                ' ')[-1].replace('\r', '').replace('\n', '')
+            file_path = answer.split(' ')[-1]
+            file_path = file_path.replace('\r', '').replace('\n', '')
             local_path = 'hex/' + file_path.split('/')[-1]
+            print(f'Локальный путь к файлу: {local_path}')
             hash = self.get_md5(local_path)
             return True, answer, hash
         else:
@@ -246,6 +263,33 @@ class Commander(object):
             file.writelines([command, answer])
 
 
+class Tooltip:
+    def __init__(self, widget: ttk.Label, text: str) -> None:
+        self.widget = widget
+        self.text = text
+        self.tooltip = None
+        self.widget.bind("<Enter>", self.show_tooltip)
+        self.widget.bind("<Leave>", self.hide_tooltip)
+
+    def show_tooltip(self, event) -> None:
+        x, y, _, _ = self.widget.bbox("insert")
+        x += self.widget.winfo_rootx() + 25
+        y += self.widget.winfo_rooty() + 25
+
+        self.tooltip = tk.Toplevel(self.widget)
+        self.tooltip.wm_overrideredirect(True)
+        self.tooltip.wm_geometry(f"+{x}+{y}")
+
+        label = ttk.Label(self.tooltip, text=self.text,
+                          background="#ffffe0", relief="solid", borderwidth=1)
+        label.pack()
+
+    def hide_tooltip(self, event) -> None:
+        if self.tooltip:
+            self.tooltip.destroy()
+            self.tooltip = None
+
+
 class Text_log(ScrolledText):
     codes_err = {
         'Wrong command': 'Ошибка выполнения команды',
@@ -263,7 +307,7 @@ class Text_log(ScrolledText):
     codes_suc = {
         'Write completed successfully': 'Запись произведена успешно',
         'Programming completed successfully': 'Программирование произведено успешно',
-        'Firmware check OK': 'Прошивка на устройстве успешно прочитана'
+        'Output written': 'Прошивка на устройстве успешно прочитана'
     }
 
     def __init__(self, *args, **kwargs) -> None:
@@ -274,30 +318,18 @@ class Text_log(ScrolledText):
         self.tag_config('blue', foreground='blue')
         self.tag_config('gray', foreground='gray')
 
+    def find_error(self, text: str) -> tuple:
+        for eng, ru in self.codes_err.items():
+            if eng in text:
+                return ru, 'red', False
+        for eng, ru in self.code_suc:
+            if eng in text:
+                return ru, 'green', True
+        return text, 'red', False
 
-    def set_text(self, text: str) -> bool:
+    def set_text(self, text: str) -> tuple:
         '''Установка текста результата в лог окно'''
-        string = ''
-        color = 'red'
-        result = False
-        for code in self.codes_err:
-            if code in text:
-                string = self.codes_err[code]
-                color = 'red'
-                result = False
-                break
-        if not string:
-            for code in self.codes_suc:
-                if code in text:
-                    string = self.codes_suc[code]
-                    color = 'green'
-                    result = True
-                    break
-        if not string:
-            string = text
-            color = 'red'
-            result = False
-
+        string, color, result = self.find_error(text)
         number = next(self.counter)
         time = self.get_time()
         self.configure(state='normal')
@@ -305,7 +337,7 @@ class Text_log(ScrolledText):
         self.configure(state='disabled')
         self.see(tk.END)
         return result
-    
+
     def set_checksum(self, checksum: str) -> None:
         '''Установка текста мд5 в лог окно'''
         time = self.get_time()
@@ -317,7 +349,6 @@ class Text_log(ScrolledText):
 
     def set_gray(self) -> None:
         self.tag_add('gray', "1.0", tk.END)
-        
 
     @staticmethod
     def get_time() -> str:
@@ -334,7 +365,7 @@ class App(tk.Tk):
         s = ttk.Style()
         s.theme_use('vista')
         self.title(
-            "Программирование микроконтроллера (Atmega128A / 1887ВЕ7Т), вер. 1.4.2")
+            "Программирование микроконтроллера (Atmega128A / 1887ВЕ7Т), вер. 1.4.3")
         frame = tk.Frame(
             self,
             padx=10,
@@ -352,6 +383,14 @@ class App(tk.Tk):
         )
         self.ent_frw.insert(
             0, config.config_data['frm_filepath'])
+        self.ent_frw.config(state='readonly')
+        self.lbl_question_frw = ttk.Label(
+            frame,
+            text='?',
+            font=("Arial", 11, "bold")
+        )
+        tooltip_frw = Tooltip(
+            self.lbl_question_frw, "Путь к файлу прошивки не должен содержать кириллические буквы")
         self.btn_frw = ttk.Button(
             frame,
             text="Выбрать файл",
@@ -366,6 +405,18 @@ class App(tk.Tk):
             frame,
             width=70
         )
+
+        self.lbl_device = ttk.Label(
+            frame,
+            text='Устройство:'
+        )
+        self.cmb_box_device = ttk.Combobox(
+            frame,
+            values=list(config.config_data['fuses'])
+        )
+        self.cmb_box_device.config(state='readonly')
+        self.cmb_box_device.set('УО')
+
         self.btn_program = ttk.Button(
             frame,
             text="Загрузить ПО в микроконтроллер",
@@ -404,27 +455,44 @@ class App(tk.Tk):
         self.check_btn_status()
         self.grid_interface()
 
+    def contains_cyrillic(self, text: str) -> bool:
+        # Паттерн для поиска кириллических символов
+        pattern = re.compile(r'[\u0400-\u04FF]+')
+        return bool(pattern.search(text))
+
     def choose_file_frw(self) -> None:
         filetypes = (("Файл прошивки", "*.hex"),
                      ("Любой", "*"))
         filename = fd.askopenfilename(
             title="Открыть файл",
-            initialdir=os.path.dirname(
-                config.config_data['frm_filepath']),
+            initialdir=config.config_data['default_frm_filepath'],
             filetypes=filetypes)
         if filename:
+            if self.contains_cyrillic(filename):
+                messagebox.showerror(
+                    "Ошибка", "Путь не должен содержать кириллические символы")
+                self.ent_frw.config(state='normal')
+                self.ent_frw.delete(0, tk.END)
+                self.ent_frw.config(state='readonly')
+                return
             config.config_data['frm_filepath'] = filename
             config.save_config()
+            self.ent_frw.config(state='normal')
             self.ent_frw.delete(0, tk.END)
             self.ent_frw.insert(0, filename)
+            self.ent_frw.config(state='readonly')
             self.check_btn_status()
 
     def send_frw(self) -> None:
         '''Функция запускающая запись прошивки'''
+
+        print('Запущен процесс прошивки')
+
         self.txt_log.set_gray()
         frm_filepath = self.ent_frw.get()
         if config.is_rigth_app_path() and os.path.isfile(frm_filepath):
             config.config_data['frm_filepath'] = frm_filepath
+            config.current_fuse = self.cmb_box_device.get()
             config.save_config()
             answer1, answer2 = commander.exec_program_commands()
             result1 = self.txt_log.set_text(answer1)
@@ -441,6 +509,9 @@ class App(tk.Tk):
 
     def read_frw(self) -> None:
         '''Функция запускающая скачивание прошивки'''
+
+        print('Запущен процесс чтения прошивки')
+
         self.txt_log.set_gray()
         if config.is_rigth_app_path():
             self.ent_checksum_from_device.delete(0, tk.END)
@@ -454,7 +525,8 @@ class App(tk.Tk):
                 messagebox.showinfo("Успешно", "Контрольная сумма посчитана")
             else:
                 self.txt_log.set_text(answer)
-                messagebox.showerror("Ошибка", "Контрольная сумма не посчитана")
+                messagebox.showerror(
+                    "Ошибка", "Контрольная сумма не посчитана")
         else:
             self.txt_log.set_text('Wrong path program')
 
@@ -481,38 +553,40 @@ class App(tk.Tk):
             self.txt_log.set_checksum(f'КС файла на компьютере: {md5}')
 
     def grid_interface(self) -> None:
-        self.lbl_frw.grid(row=4, column=1, pady=5, padx=4, sticky='e')
-        self.ent_frw.grid(row=4, column=2, pady=5, padx=4)
-        self.btn_frw.grid(row=4, column=3, pady=5, padx=4, sticky='w')
+        self.lbl_frw.grid(
+            row=4, column=1, pady=5, padx=4, sticky='e')
+        self.ent_frw.grid(
+            row=4, column=2, pady=5, padx=4)
+        self.lbl_question_frw.grid(
+            row=4, column=3)
+        self.btn_frw.grid(
+            row=4, column=4, pady=5, padx=4, sticky='we')
         self.lbl_checksum_from_disk.grid(
             row=5, column=1, pady=5, padx=4, sticky='e')
-        self.ent_checksum_from_disk.grid(row=5, column=2, pady=5, padx=4)
-
-        self.btn_program.grid(row=6, column=2, pady=5, padx=4)
-
+        self.ent_checksum_from_disk.grid(
+            row=5, column=2, pady=5, padx=4)
+        self.lbl_device.grid(
+            row=6, column=1, pady=5, padx=5, sticky='e')
+        self.cmb_box_device.grid(
+            row=6, column=2, pady=5, padx=5, sticky='w')
+        self.btn_program.grid(
+            row=7, column=2, pady=5, padx=4)
         self.separator_2.grid(
-            row=7, column=1, columnspan=3, sticky='ew', pady=8)
+            row=8, column=1, columnspan=4, sticky='we', pady=8)
         self.lbl_checksum_from_device.grid(
-            row=8, column=1, pady=5, padx=4, sticky='e')
-        self.ent_checksum_from_device.grid(row=8, column=2, pady=5, padx=4)
-        self.btn_read.grid(row=10, column=2, pady=5, padx=4)
-        self.lbl_image.grid(row=8, column=3, padx=4, sticky='s', rowspan=3)
-        self.txt_log.grid(row=11, column=1, pady=5, padx=4, columnspan=3)
+            row=9, column=1, pady=5, padx=4, sticky='e')
+        self.ent_checksum_from_device.grid(
+            row=9, column=2, pady=5, padx=4)
+        self.lbl_image.grid(
+            row=9, column=4, padx=4, sticky='s', rowspan=3)
+        self.btn_read.grid(
+            row=11, column=2, pady=5, padx=4)
+        self.txt_log.grid(
+            row=12, column=1, pady=5, padx=4, columnspan=4)
         self.update()
         width = self.winfo_width()
         height = self.winfo_height()
         self.geometry(f"{width}x{height}")
-        # self.geometry(self.center_window(width=width, height=height))
-
-    # def center_window(self, width, height):
-    #     '''Рассчет для центровки положения окна на экране'''
-    #     screen_width = self.winfo_screenwidth()
-    #     screen_height = self.winfo_screenheight()
-    #     x = (screen_width / 2) - (width / 2)
-    #     y = (screen_height / 2) - (height / 2)
-
-    #     return '%dx%d+%d+%d' % (width, height, x, y)
-
 
 if __name__ == "__main__":
     config = Config()

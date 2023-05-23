@@ -1,9 +1,13 @@
 {
     "app_path": "C:/Tikhonov/frim_prog/U O/atbackend/atprogram.exe",
-    "fuse": "E419FF",
+    "fuses": {
+        "\u0423\u041e": "E419FF",
+        "\u0423\u0421\u041a": "A419FF"
+    },
     "device": "atmega128A",
-    "frm_filepath": "C:/Tikhonov/frim_prog/U O/backup_UO.hex",
-    "hex_filepath": "c:/Tikhonov/frim_prog/hex/frw{time}.hex",
+    "default_frm_filepath": "c:/Tikhonov/frim_prog",
+    "frm_filepath": "C:/Tikhonov/frim_prog/hex/firmware.hex",
+    "hex_filepath": "/hex/frw{time}.hex",
     "command_write": "-t jtagicemkii -d {device} -i JTAG -cl 250khz write -fs --values",
     "command_program": "-t jtagicemkii -d {device} -i JTAG -cl 250khz program -fl -f",
     "command_read_hex": "-t jtagicemkii -d {device} -i JTAG -cl 250khz read -fl -f",
