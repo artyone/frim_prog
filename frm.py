@@ -289,6 +289,7 @@ class Commander:
 
 
 class Tooltip:
+    '''Класс тултипа'''
     def __init__(self, widget: ttk.Label, text: str) -> None:
         self.widget = widget
         self.text = text
@@ -332,7 +333,7 @@ class Text_log(ScrolledText):
     codes_suc = {
         'Write completed successfully': 'Запись произведена успешно',
         'Programming completed successfully': 'Программирование произведено успешно',
-        'Output written': 'Прошивка на устройстве успешно прочитана'
+        'Output written': 'Прошивка микроконтроллера успешно прочитана'
     }
 
     def __init__(self, *args, **kwargs) -> None:
@@ -500,6 +501,7 @@ class App(tk.Tk):
         self.grid_interface()
 
     def on_cmb_box_device_select(self, event):
+        # если выбрано УО то остается только один вариант и виджет устройства блокируется
         selected_value = self.cmb_box_device.get()
         if selected_value == 'УО':
             self.cmb_box_device_micr.set('1887BE7T')
@@ -508,11 +510,12 @@ class App(tk.Tk):
             self.cmb_box_device_micr.config(state='readonly')
 
     def contains_cyrillic(self, text: str) -> bool:
-        # Паттерн для поиска кириллических символов
+        '''Функция проверки входят ли кириллические символы в строку'''
         pattern = re.compile(r'[\u0400-\u04FF]+')
         return bool(pattern.search(text))
 
     def choose_file_frw(self) -> None:
+        '''Функция,которая запускает кнопка выбора файла'''
         filetypes = (("Файл прошивки", "*.hex"),
                      ("Любой", "*"))
         filename = fd.askopenfilename(
@@ -557,9 +560,9 @@ class App(tk.Tk):
             result1 = self.txt_log.set_text(answer1)
             result2 = self.txt_log.set_text(answer2)
             if result1 and result2:
-                messagebox.showinfo("Успешно", "ПО на устройстве обновлено")
+                messagebox.showinfo("Успешно", "ПО микроконтроллера обновлено")
             else:
-                messagebox.showerror("Ошибка", "ПО на устройстве НЕ обновлено")
+                messagebox.showerror("Ошибка", "ПО микроконтроллера НЕ обновлено")
         else:
             if not config.is_rigth_app_path():
                 self.txt_log.set_text('Wrong path program', config.config_data['app_path'])
@@ -581,7 +584,7 @@ class App(tk.Tk):
                     md5 = config.dll['device_file'][1]
                 self.ent_checksum_from_device.insert(0, md5)
                 self.txt_log.set_text(answer)
-                self.txt_log.set_checksum(f'КС файла на устройстве: {md5}')
+                self.txt_log.set_checksum(f'КС файла микроконтроллера: {md5}')
                 messagebox.showinfo("Успешно", "Контрольная сумма посчитана")
             else:
                 self.txt_log.set_text(answer)
