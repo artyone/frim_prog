@@ -13,7 +13,8 @@ import os
 import re
 
 
-class Config():
+class Config:
+    
     def __init__(self) -> None:
         self.path_to_dir = os.path.dirname(__file__).replace('\\', '/')
         self.path_to_config = self.path_to_dir + '/config.json'
@@ -24,7 +25,8 @@ class Config():
             self.create_dll()
         self.config_data = self.read_json(self.path_to_config)
         self.dll = self.read_json(self.path_to_dll)
-        self.current_fuse = 'УО'
+        self.current_fuse = 'УСК'
+        self.current_device = '1887BE7T'
 
     def create_config(self) -> None:
         '''Создаем конфиг, если его нет'''
@@ -36,8 +38,8 @@ class Config():
                 config['app_path'] = r'C:/Program Files (x86)/Atmel/Atmel Studio 6.2/atbackend/atprogram.exe'
             else:
                 config['app_path'] = ''
-            config['fuses'] = {'УО': 'E419FF', 'УСК': 'A419FF'}
-            config['device'] = 'atmega128A'
+            config['fuses'] = {'УО': 'E419FF', 'УСК': 'FF1CFF'}
+            config['devices'] = {'ATmega128A':'atmega128A', '1887BE7T':'1887BE7T'}
             config['default_frm_filepath'] = self.path_to_dir
             config['frm_filepath'] = ''
             config['hex_filepath'] = '/hex/frw{time}.hex'
@@ -46,7 +48,6 @@ class Config():
             config["command_read_hex"] = "-t jtagicemkii -d {device} -i JTAG -cl 250khz read -fl -f"
             config["command_read_fuse"] = "-t jtagicemkii -d {device} -i JTAG -cl 250khz read -fs"
             config["logs"] = True
-            config['devices'] = ['atmega128A', '1887BE7T']
 
             json.dump(config, file, indent=4, ensure_ascii=False)
 
@@ -70,19 +71,20 @@ class Config():
     def save_config(self) -> None:
         '''Сохранение конфига'''
         with open(self.path_to_config, 'w', encoding='utf8') as file:
-            json.dump(self.config_data, file, indent=4)
+            json.dump(self.config_data, file, indent=4, ensure_ascii=False)
 
     def insert_device(self, string: str) -> str:
         '''Вставляет устройство в строку'''
-        return string.replace('{device}', self.config_data['device'])
+        device = self.config_data['devices'][self.current_device]
+        return string.replace('{device}', device)
 
     def get_command_write(self) -> str:
         '''Позволяет получить из конфига команду записи'''
-        app_path = self.config_data['app_path']
+        app_path = self.config_data["app_path"]
         args = self.insert_device(self.config_data['command_write'])
         fuse = self.config_data['fuses'][self.current_fuse]
-        if app_path != '' and args != '' and fuse != '':
-            command = ' '.join(['"' + app_path + '"', args, fuse])
+        if all([app_path, args, fuse]):
+            command = ' '.join([f'"{app_path}"', args, fuse])
             return command
         else:
             return ''
@@ -92,9 +94,9 @@ class Config():
         app_path = self.config_data['app_path']
         args = self.insert_device(self.config_data['command_program'])
         frm_filepath = self.config_data['frm_filepath']
-        if app_path != '' and args != '' and frm_filepath != '':
+        if all([app_path, args, frm_filepath]):
             command = ' '.join(
-                ['"' + app_path + '"', args, f'"{frm_filepath}"']
+                [f'"{app_path}"', args, f'"{frm_filepath}"']
             )
             return command
         else:
@@ -106,21 +108,25 @@ class Config():
         args = self.insert_device(self.config_data['command_read_hex'])
         hex_filepath = self.path_to_dir + self.config_data['hex_filepath']
         hex_filepath = hex_filepath.replace('{time}', str(int(time.time())))
-        if app_path != '' and args != '' and hex_filepath != '':
-            command = ' '.join([f'"{app_path}"', args, f'"{hex_filepath}"'])
+        if all([app_path, args, hex_filepath]):
+            command = ' '.join(
+                [f'"{app_path}"', args, f'"{hex_filepath}"']
+            )
             return command
         else:
             return ''
 
-    # def get_command_fuse(self):
-    #     '''Позволяет получить из конфига команду чтения контрольной суммы'''
-    #     app_path = self.config_data['app_path']
-    #     args = self.insert_device(self.config_data['command_read_fuse'])
-    #     if app_path != '' and args != '':
-    #         command = ' '.join([f'"{app_path}"', args])
-    #         return command
-    #     else:
-    #         return ''
+    def get_command_fuse(self):
+        '''Позволяет получить из конфига команду чтения контрольной суммы'''
+        app_path = self.config_data['app_path']
+        args = self.insert_device(self.config_data['command_read_fuse'])
+        if all([app_path, args]):
+            command = ' '.join(
+                [f'"{app_path}"', args]
+            )
+            return command
+        else:
+            return ''
 
     def dll_is_ok(self) -> bool:
         '''Проверка на правильность длл'''
@@ -136,7 +142,7 @@ class Config():
         try:
             config = self.read_json(self.path_to_config)
             keys = sorted([
-                'app_path', 'fuses', 'device',
+                'app_path', 'fuses',
                 'frm_filepath', 'hex_filepath',
                 'command_write', 'command_program',
                 'command_read_hex', 'command_read_fuse',
@@ -154,7 +160,7 @@ class Config():
             return False
 
 
-class Commander(object):
+class Commander:
     '''Класс для выполнения команд в командной строке'''
 
     def __init__(self) -> None:
@@ -235,17 +241,34 @@ class Commander(object):
         # hash = self.get_md5('hex/firmware.hex')
         # return True, 'Firmware check OK', hash
         self.check_hex_dir()
+
+
+        command = config.get_command_fuse()
+        print(f'Команда:{command}')
+        self.exec_command(command)
+        answer = self.get_answer()
+        if 'Firmware check OK' in answer:
+            pattern = r':\w{8}(\w{6})'
+            match = re.search(pattern, answer)
+
+            if match:
+                extracted_text = match.group(1)
+                print(f'Ответ: {extracted_text}')
+        else: print(f'Ответ: {answer}')
+
+
         command = config.get_command_hex()
         print(f'Команда:{command}')
         self.exec_command(command)
         answer = self.get_answer()
         print(f'Ответ:{answer}')
-        if 'Firmware check OK' in answer:
+        if 'Output written' in answer:
             file_path = answer.split(' ')[-1]
             file_path = file_path.replace('\r', '').replace('\n', '')
             local_path = 'hex/' + file_path.split('/')[-1]
             print(f'Локальный путь к файлу: {local_path}')
             hash = self.get_md5(local_path)
+
             return True, answer, hash
         else:
             return False, answer, None
@@ -329,13 +352,13 @@ class Text_log(ScrolledText):
                 return ru, 'green', True
         return text, 'red', False
 
-    def set_text(self, text: str) -> tuple:
+    def set_text(self, text: str, params='') -> tuple:
         '''Установка текста результата в лог окно'''
         string, color, result = self.find_error(text)
         number = next(self.counter)
         time = self.get_time()
         self.configure(state='normal')
-        self.insert(tk.END, f'{number}. {time} {string}\n', color)
+        self.insert(tk.END, f'{number}. {time} {string} {params}\n', color)
         self.configure(state='disabled')
         self.see(tk.END)
         return result
@@ -367,7 +390,7 @@ class App(tk.Tk):
         s = ttk.Style()
         s.theme_use('vista')
         self.title(
-            "Программирование микроконтроллера (Atmega128A / 1887ВЕ7Т), вер. 1.4.3")
+            "Программирование ПЗУ УСК и УО (Atmega128A / 1887ВЕ7Т)")
         frame = tk.Frame(
             self,
             padx=10,
@@ -417,7 +440,23 @@ class App(tk.Tk):
             values=list(config.config_data['fuses'])
         )
         self.cmb_box_device.config(state='readonly')
-        self.cmb_box_device.set('УО')
+        self.cmb_box_device.set('УСК')
+
+        self.cmb_box_device.bind(
+            '<<ComboboxSelected>>', 
+            self.on_cmb_box_device_select
+        )
+
+        self.lbl_device_micr = ttk.Label(
+            frame,
+            text='Тип микросхемы:'
+        )
+        self.cmb_box_device_micr = ttk.Combobox(
+            frame,
+            values=list(config.config_data['devices'])
+        )
+        self.cmb_box_device_micr.config(state='readonly')
+        self.cmb_box_device_micr.set('1887BE7T')
 
         self.btn_program = ttk.Button(
             frame,
@@ -453,9 +492,20 @@ class App(tk.Tk):
             frame,
             image=image
         )
+        tooltip_version = Tooltip(
+            self.lbl_image, '1.4.5')
+
         self.lbl_image.image_ref = image  # type: ignore
         self.check_btn_status()
         self.grid_interface()
+
+    def on_cmb_box_device_select(self, event):
+        selected_value = self.cmb_box_device.get()
+        if selected_value == 'УО':
+            self.cmb_box_device_micr.set('1887BE7T')
+            self.cmb_box_device_micr.config(state='disable')
+        else:
+            self.cmb_box_device_micr.config(state='readonly')
 
     def contains_cyrillic(self, text: str) -> bool:
         # Паттерн для поиска кириллических символов
@@ -493,8 +543,15 @@ class App(tk.Tk):
         self.txt_log.set_gray()
         frm_filepath = self.ent_frw.get()
         if config.is_rigth_app_path() and os.path.isfile(frm_filepath):
+            
+            result = messagebox.askokcancel(
+                'Внимание!', 
+                f'Вы собираетесь программировать {self.cmb_box_device.get()} {self.cmb_box_device_micr.get()}. Продолжить?')
+            if not result:
+                return
             config.config_data['frm_filepath'] = frm_filepath
             config.current_fuse = self.cmb_box_device.get()
+            config.current_device = self.cmb_box_device_micr.get()
             config.save_config()
             answer1, answer2 = commander.exec_program_commands()
             result1 = self.txt_log.set_text(answer1)
@@ -505,9 +562,9 @@ class App(tk.Tk):
                 messagebox.showerror("Ошибка", "ПО на устройстве НЕ обновлено")
         else:
             if not config.is_rigth_app_path():
-                self.txt_log.set_text('Wrong path program')
+                self.txt_log.set_text('Wrong path program', config.config_data['app_path'])
             if not os.path.isfile(frm_filepath):
-                self.txt_log.set_text('Wrong path frw')
+                self.txt_log.set_text('Wrong path frw', frm_filepath)
 
     def read_frw(self) -> None:
         '''Функция запускающая скачивание прошивки'''
@@ -516,6 +573,7 @@ class App(tk.Tk):
 
         self.txt_log.set_gray()
         if config.is_rigth_app_path():
+            config.current_device = self.cmb_box_device_micr.get()
             self.ent_checksum_from_device.delete(0, tk.END)
             result, answer, md5 = commander.exec_read_commands()
             if result:
@@ -530,7 +588,8 @@ class App(tk.Tk):
                 messagebox.showerror(
                     "Ошибка", "Контрольная сумма не посчитана")
         else:
-            self.txt_log.set_text('Wrong path program')
+            self.txt_log.set_text('Wrong path program', config.config_data['app_path'])
+
 
     def check_btn_status(self) -> None:
         self.txt_log.set_gray()
@@ -539,9 +598,9 @@ class App(tk.Tk):
         else:
             self.btn_program.config(state='disabled')
             if not config.is_rigth_app_path():
-                self.txt_log.set_text('Wrong path program')
+                self.txt_log.set_text('Wrong path program', config.config_data['app_path'])
             if not os.path.isfile(self.ent_frw.get()):
-                self.txt_log.set_text('Wrong path frw')
+                self.txt_log.set_text('Wrong path frw', self.ent_frw.get())
         if config.is_rigth_app_path():
             self.btn_read.config(state='normal')
         else:
@@ -552,43 +611,50 @@ class App(tk.Tk):
                 md5 = config.dll['disk_file'][1]
             self.ent_checksum_from_disk.delete(0, tk.END)
             self.ent_checksum_from_disk.insert(0, md5)
-            self.txt_log.set_checksum(f'КС файла на компьютере: {md5}')
+            filename = self.ent_frw.get().split('/')[-1]
+            
+            self.txt_log.set_checksum(f'КС файла {filename}: {md5}')
 
     def grid_interface(self) -> None:
         self.lbl_frw.grid(
             row=4, column=1, pady=5, padx=4, sticky='e')
         self.ent_frw.grid(
-            row=4, column=2, pady=5, padx=4)
+            row=4, column=2, pady=5, padx=4, columnspan=3)
         self.lbl_question_frw.grid(
-            row=4, column=3)
+            row=4, column=5)
         self.btn_frw.grid(
-            row=4, column=4, pady=5, padx=4, sticky='we')
+            row=4, column=6, pady=5, padx=4, sticky='we')
         self.lbl_checksum_from_disk.grid(
             row=5, column=1, pady=5, padx=4, sticky='e')
         self.ent_checksum_from_disk.grid(
-            row=5, column=2, pady=5, padx=4)
+            row=5, column=2, pady=5, padx=4, columnspan=3)
         self.lbl_device.grid(
             row=6, column=1, pady=5, padx=5, sticky='e')
         self.cmb_box_device.grid(
             row=6, column=2, pady=5, padx=5, sticky='w')
+        self.lbl_device_micr.grid(
+            row=6, column=3, pady=5, padx=5, sticky='e')
+        self.cmb_box_device_micr.grid(
+            row=6, column=4, pady=5, padx=5, sticky='w')
         self.btn_program.grid(
-            row=7, column=2, pady=5, padx=4)
+            row=7, column=2, pady=5, padx=4, columnspan=3)
         self.separator_2.grid(
-            row=8, column=1, columnspan=4, sticky='we', pady=8)
+            row=8, column=1, columnspan=6, sticky='we', pady=8)
         self.lbl_checksum_from_device.grid(
             row=9, column=1, pady=5, padx=4, sticky='e')
         self.ent_checksum_from_device.grid(
-            row=9, column=2, pady=5, padx=4)
+            row=9, column=2, pady=5, padx=4, columnspan=3)
         self.lbl_image.grid(
-            row=9, column=4, padx=4, sticky='s', rowspan=3)
+            row=9, column=6, padx=4, sticky='s', rowspan=3)
         self.btn_read.grid(
-            row=11, column=2, pady=5, padx=4)
+            row=11, column=2, pady=5, padx=4, columnspan=3)
         self.txt_log.grid(
-            row=12, column=1, pady=5, padx=4, columnspan=4)
+            row=12, column=1, pady=5, padx=4, columnspan=6)
         self.update()
         width = self.winfo_width()
         height = self.winfo_height()
         self.geometry(f"{width}x{height}")
+
 
 if __name__ == "__main__":
     config = Config()

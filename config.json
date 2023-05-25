@@ -1,20 +1,19 @@
 {
     "app_path": "C:/Tikhonov/frim_prog/U O/atbackend/atprogram.exe",
     "fuses": {
-        "\u0423\u041e": "E419FF",
-        "\u0423\u0421\u041a": "A419FF"
+        "УО": "E419FF",
+        "УСК": "FF1CFF"
     },
-    "device": "atmega128A",
+    "devices": {
+        "ATmega128A": "atmega128A",
+        "1887BE7T": "1887BE7T"
+    },
     "default_frm_filepath": "c:/Tikhonov/frim_prog",
-    "frm_filepath": "C:/Tikhonov/frim_prog/hex/firmware.hex",
+    "frm_filepath": "C:/Tikhonov/frim_prog/hex/firmware.hex1",
     "hex_filepath": "/hex/frw{time}.hex",
     "command_write": "-t jtagicemkii -d {device} -i JTAG -cl 250khz write -fs --values",
     "command_program": "-t jtagicemkii -d {device} -i JTAG -cl 250khz program -fl -f",
     "command_read_hex": "-t jtagicemkii -d {device} -i JTAG -cl 250khz read -fl -f",
     "command_read_fuse": "-t jtagicemkii -d {device} -i JTAG -cl 250khz read -fs",
-    "logs": true,
-    "devices": [
-        "atmega128A",
-        "1887BE7T"
-    ]
+    "logs": true
 }
