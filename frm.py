@@ -205,20 +205,20 @@ class Commander:
         '''
         command_write = config.get_command_write()
 
-        print(f'Команда записи: {command_write}')
+        #print(f'Команда записи: {command_write}')
 
         self.exec_command(command_write)
         answer1 = self.get_answer()
 
-        print(f'Ответ: {answer1}')
+        #print(f'Ответ: {answer1}')
 
         command_program = config.get_command_program()
 
-        print(f'Команда прошивки: {command_program}')
+        #print(f'Команда прошивки: {command_program}')
         self.exec_command(command_program)
         answer2 = self.get_answer()
 
-        print(f'Ответ: {answer2}')
+        #print(f'Ответ: {answer2}')
         return answer1, answer2
 
     @staticmethod
@@ -244,7 +244,7 @@ class Commander:
 
 
         command = config.get_command_fuse()
-        print(f'Команда:{command}')
+        #print(f'Команда:{command}')
         self.exec_command(command)
         answer = self.get_answer()
         if 'Firmware check OK' in answer:
@@ -253,25 +253,27 @@ class Commander:
 
             if match:
                 extracted_text = match.group(1)
-                print(f'Ответ: {extracted_text}')
-        else: print(f'Ответ: {answer}')
+                answer1 = (True, f'Считанный фьюз: {extracted_text}', None)
+                #print(f'Ответ: {extracted_text}')
+        else: 
+            answer1 = (False, answer, None)
 
 
         command = config.get_command_hex()
-        print(f'Команда:{command}')
+        #print(f'Команда:{command}')
         self.exec_command(command)
         answer = self.get_answer()
-        print(f'Ответ:{answer}')
+        #print(f'Ответ:{answer}')
         if 'Output written' in answer:
             file_path = answer.split(' ')[-1]
             file_path = file_path.replace('\r', '').replace('\n', '')
             local_path = 'hex/' + file_path.split('/')[-1]
-            print(f'Локальный путь к файлу: {local_path}')
+            #print(f'Локальный путь к файлу: {local_path}')
             hash = self.get_md5(local_path)
-
-            return True, answer, hash
+            answer2 = (True, answer, hash)
         else:
-            return False, answer, None
+            answer2 = (False, answer, None)
+        return answer1, answer2
 
     @staticmethod
     def save_log(command: str, answer: str) -> None:
@@ -391,7 +393,7 @@ class App(tk.Tk):
         s = ttk.Style()
         s.theme_use('vista')
         self.title(
-            "Программирование ПЗУ УСК и УО (Atmega128A / 1887ВЕ7Т)")
+            "УСК ПРО")
         frame = tk.Frame(
             self,
             padx=10,
@@ -494,7 +496,7 @@ class App(tk.Tk):
             image=image
         )
         tooltip_version = Tooltip(
-            self.lbl_image, '1.4.5')
+            self.lbl_image, '1.5')
 
         self.lbl_image.image_ref = image  # type: ignore
         self.check_btn_status()
@@ -541,7 +543,7 @@ class App(tk.Tk):
     def send_frw(self) -> None:
         '''Функция запускающая запись прошивки'''
 
-        print('Запущен процесс прошивки')
+        #print('Запущен процесс прошивки')
 
         self.txt_log.set_gray()
         frm_filepath = self.ent_frw.get()
@@ -572,13 +574,14 @@ class App(tk.Tk):
     def read_frw(self) -> None:
         '''Функция запускающая скачивание прошивки'''
 
-        print('Запущен процесс чтения прошивки')
+        #print('Запущен процесс чтения прошивки')
 
         self.txt_log.set_gray()
         if config.is_rigth_app_path():
             config.current_device = self.cmb_box_device_micr.get()
             self.ent_checksum_from_device.delete(0, tk.END)
-            result, answer, md5 = commander.exec_read_commands()
+            answer1, answer2 = commander.exec_read_commands()
+            result, answer, md5 = answer2
             if result:
                 if config.dll['device_file'][0] == md5:
                     md5 = config.dll['device_file'][1]
@@ -590,6 +593,11 @@ class App(tk.Tk):
                 self.txt_log.set_text(answer)
                 messagebox.showerror(
                     "Ошибка", "Контрольная сумма не посчитана")
+            result, answer, _ = answer1
+            if result:
+                self.txt_log.set_checksum(answer)
+            else: 
+                self.txt_log.set_text(answer)
         else:
             self.txt_log.set_text('Wrong path program', config.config_data['app_path'])
 

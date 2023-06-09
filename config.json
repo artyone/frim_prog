@@ -9,7 +9,7 @@
         "1887BE7T": "1887BE7T"
     },
     "default_frm_filepath": "c:/Tikhonov/frim_prog",
-    "frm_filepath": "C:/Tikhonov/frim_prog/hex/firmware.hex1",
+    "frm_filepath": "C:/Tikhonov/frim_prog/hex/firmware.hex",
     "hex_filepath": "/hex/frw{time}.hex",
     "command_write": "-t jtagicemkii -d {device} -i JTAG -cl 250khz write -fs --values",
     "command_program": "-t jtagicemkii -d {device} -i JTAG -cl 250khz program -fl -f",
